@@ -1,0 +1,30 @@
+# Personal Claude Code skill collection.
+# Pulls skills from multiple upstreams, applies optional natural-language
+# patches, materializes into dist/ as per-source mini-plugins.
+#
+# See docs/plans/2026-05-29-skill-marketplace-design.md in the `ass` repo.
+
+sources: {}
+  # Example:
+  # gstack:
+  #   repo: github.com/gstack-tools/skills
+  #   ref: main
+  # pocock:
+  #   repo: github.com/mattpocock/skills
+  #   ref: main
+
+skills: []
+  # Example:
+  # - source: gstack
+  #   path: skills/careful
+  #   namespace: gstack          # → gstack:careful
+  #   patch: patches/careful.patch.md
+  #
+  # - source: pocock
+  #   path: tdd
+  #   namespace: pocock
+  #   pin: a7f3b29               # freeze this entry to a SHA
+  #
+  # - source: jeff
+  #   path: skills/code-archaeologist
+  #   # no namespace → bare invocation
