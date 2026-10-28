@@ -1,6 +1,6 @@
 {
 	"name": "skillsfile",
-	"version": "0.0.0",
+	"version": "0.1.0",
 	"description": "Declarative agent skills: one skills.yaml to install, rename, retune and patch skills from any repo",
 	"license": "MIT",
 	"type": "module",
@@ -15,8 +15,10 @@
 	},
 	"repository": {
 		"type": "git",
-		"url": "git+https://github.com/richard-better/skills-collection.git"
+		"url": "git+https://github.com/richard-better/skillsfile.git"
 	},
+	"homepage": "https://github.com/richard-better/skillsfile#readme",
+	"bugs": "https://github.com/richard-better/skillsfile/issues",
 	"keywords": [
 		"agent-skills",
 		"claude-code",
@@ -41,5 +43,6 @@
 		"@types/node": "^22.20.5",
 		"typescript": "^7.0.2",
 		"vitest": "^5.0.5"
-	}
+	},
+	"packageManager": "pnpm@10.30.3"
 }
