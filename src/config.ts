@@ -1,4 +1,4 @@
-import { existsSync } from "node:fs";
+import { existsSync, realpathSync } from "node:fs";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
 import { type Document, isMap, parseDocument } from "yaml";
@@ -94,7 +94,8 @@ export async function loadConfig(
 	file: string,
 	defaultTarget: string,
 ): Promise<Config> {
-	const absolute = resolve(file);
+	// Resolve symlinks so relative paths (target, patches, the lock) sit next to the real file.
+	const absolute = existsSync(file) ? realpathSync(file) : resolve(file);
 	const dir = dirname(absolute);
 	const text = existsSync(absolute) ? await readFile(absolute, "utf8") : "";
 	const document = parseDocument(text);

@@ -1,5 +1,5 @@
 import { existsSync } from "node:fs";
-import { readFile, writeFile } from "node:fs/promises";
+import { mkdir, readFile, symlink, writeFile } from "node:fs/promises";
 import { join, resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 import { run } from "../src/process.js";
@@ -86,6 +86,32 @@ describe("cli", () => {
 		expect(existsSync(join(home, ".agents/skills/grill-me/SKILL.md"))).toBe(
 			true,
 		);
+	});
+
+	it("resolves paths next to the real skills.yaml when it is a symlink", async () => {
+		const { repo, home, cli } = await setup();
+		const dotfiles = await tempDir();
+		await writeFile(
+			join(dotfiles, "skills.yaml"),
+			`target: skills\nskills:\n  grill-me: ${repo.url}\n`,
+		);
+		await mkdir(join(home, ".agents"));
+		await symlink(
+			join(dotfiles, "skills.yaml"),
+			join(home, ".agents/skills.yaml"),
+		);
+
+		expect((await cli("install", "-g")).code).toBe(0);
+		expect(existsSync(join(dotfiles, "skills/grill-me/SKILL.md"))).toBe(true);
+		expect(existsSync(join(dotfiles, "skills.lock"))).toBe(true);
+
+		const skillFile = join(dotfiles, "skills/grill-me/SKILL.md");
+		await writeFile(
+			skillFile,
+			`${await readFile(skillFile, "utf8")}Extra rule.\n`,
+		);
+		expect((await cli("diff", "-g", "grill-me")).code).toBe(0);
+		expect(existsSync(join(dotfiles, "patches/grill-me.patch"))).toBe(true);
 	});
 
 	it("rejects refs that git would read as options", async () => {

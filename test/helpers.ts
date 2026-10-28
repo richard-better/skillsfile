@@ -1,10 +1,11 @@
-import { chmod, mkdir, mkdtemp, writeFile } from "node:fs/promises";
+import { chmod, mkdir, mkdtemp, realpath, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { git } from "../src/process.js";
 
 export async function tempDir(prefix = "skillsfile-test-"): Promise<string> {
-	return mkdtemp(join(tmpdir(), prefix));
+	// Real paths, so assertions match paths skillsfile resolves (macOS /var is a symlink).
+	return realpath(await mkdtemp(join(tmpdir(), prefix)));
 }
 
 export async function writeFiles(
