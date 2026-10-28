@@ -120,9 +120,11 @@ skills:
 ```
 
 The [Claude Code](https://claude.com/claude-code) CLI applies them with `claude -p`, so it must be
-installed and logged in. It runs inside a copy of the skill with `--restricted`: only file
+installed and logged in. It uses the first `claude` on `PATH`; set `SKILLSFILE_CLAUDE` to pick
+another one (`npx` puts Node's global `bin` first, which may hold an older install). It runs inside a copy of the skill with `--restricted`: only file
 read and edit tools, confined to that copy, with no shell, no MCP servers and none of your
-settings, hooks or `CLAUDE.md`. Claude is told the skill's installed and upstream names and
+settings, hooks or `CLAUDE.md`. Rewrites that add symlinks pointing outside the skill are
+rejected. Claude is told the skill's installed and upstream names and
 those of the other skills from the same source.
 
 The result is saved as `patches/<name>.instructions.patch`; commit it. Installs apply the saved

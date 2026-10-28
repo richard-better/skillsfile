@@ -307,6 +307,7 @@ export class Installer {
 		const base = await mkdtemp(join(await this.scratch, `${name}-base-`));
 		await cp(dir, base, { recursive: true, verbatimSymlinks: true });
 		await rewriteSkill(dir, request);
+		await assertContainedSymlinks(dir);
 		await mkdir(dirname(file), { recursive: true });
 		await writeFile(file, header + (await createPatch(base, dir)));
 	}

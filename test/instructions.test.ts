@@ -200,4 +200,37 @@ skills:
 		expect(patch).not.toMatch(/^-[^-]/m);
 		expect(await p.calls()).toHaveLength(1);
 	});
+
+	it("refuses a rewrite that links outside the skill", async () => {
+		const p = await project(anchored);
+		await p.write(
+			anchored(p.repo.url).replace(
+				"instructions: [*dashes, *names]",
+				'instructions: [link "secrets" to "/etc"]',
+			),
+		);
+		const result = await p.install();
+		expect(result.errors.get("emil-animate")?.message).toBe(
+			"secrets links outside the skill; refusing to install it",
+		);
+		expect(existsSync(join(p.target, "emil-animate"))).toBe(false);
+	});
+
+	it("explains when the claude binary is too old for --restricted", async () => {
+		const p = await project(anchored);
+		const fake = process.env.SKILLSFILE_CLAUDE;
+		process.env.SKILLSFILE_CLAUDE = join(
+			import.meta.dirname,
+			"fake-old-claude.mjs",
+		);
+		try {
+			const result = await p.install();
+			expect(result.errors.get("emil-animate")?.message).toBe(
+				`Claude Code 2.1.15 at ${process.env.SKILLSFILE_CLAUDE} is too old for instructions, which need --restricted. Update it, or set SKILLSFILE_CLAUDE to a newer claude.`,
+			);
+			expect(await p.calls()).toHaveLength(0);
+		} finally {
+			process.env.SKILLSFILE_CLAUDE = fake;
+		}
+	});
 });

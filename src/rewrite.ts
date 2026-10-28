@@ -32,6 +32,37 @@ async function withSlot<T>(task: () => Promise<T>): Promise<T> {
 	}
 }
 
+/** Checks each claude binary once: instructions rely on --restricted to confine it. */
+const checked = new Map<string, Promise<void>>();
+
+function ensureSupported(claude: string): Promise<void> {
+	let check = checked.get(claude);
+	if (!check) {
+		check = verify(claude);
+		checked.set(claude, check);
+	}
+	return check;
+}
+
+async function verify(claude: string): Promise<void> {
+	const help = await run(claude, ["--help"]).catch(() => undefined);
+	if (!help) {
+		throw new Error(
+			`Claude Code (${claude}) was not found; instructions need it installed and logged in, or SKILLSFILE_CLAUDE set to its path.`,
+		);
+	}
+	if (help.stdout.includes("--restricted")) return;
+	const version = (await run(claude, ["--version"])).stdout
+		.trim()
+		.split(" ")[0];
+	const path = (
+		await run("sh", ["-c", 'command -v "$0"', claude])
+	).stdout.trim();
+	throw new Error(
+		`Claude Code ${version || "(unknown version)"} at ${path || claude} is too old for instructions, which need --restricted. Update it, or set SKILLSFILE_CLAUDE to a newer claude.`,
+	);
+}
+
 export function rewritePrompt(request: RewriteRequest): string {
 	const renamed = request.upstreamName !== request.name;
 	const siblings = [...request.siblings]
@@ -84,6 +115,7 @@ export async function rewriteSkill(
 	];
 	// SKILLSFILE_CLAUDE points at another Claude Code binary, e.g. a test double.
 	const claude = process.env.SKILLSFILE_CLAUDE ?? "claude";
+	await ensureSupported(claude);
 	const result = await withSlot(() => run(claude, args, { cwd: dir }));
 	const lastLine = result.stdout.trim().split("\n").at(-1)?.trim() ?? "";
 	if (result.code !== 0) {
