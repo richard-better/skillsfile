@@ -1,6 +1,6 @@
 {
 	"name": "skillsfile",
-	"version": "0.2.1",
+	"version": "0.2.2",
 	"description": "Declarative agent skills: one skills.yaml to install, rename, retune and patch skills from any repo",
 	"license": "MIT",
 	"type": "module",
