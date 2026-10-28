@@ -1,5 +1,5 @@
 import { existsSync } from "node:fs";
-import { mkdir, mkdtemp, readdir, readFile, rm } from "node:fs/promises";
+import { mkdtemp, readdir, readFile, rm } from "node:fs/promises";
 import { homedir, tmpdir } from "node:os";
 import { basename, join, relative, resolve, sep } from "node:path";
 import { readFrontmatterField } from "./frontmatter.js";
@@ -42,7 +42,8 @@ export interface Checkout {
 /** Fetches git sources into a scratch directory, once per (url, ref). */
 export class Fetcher {
 	private readonly checkouts = new Map<string, Promise<Checkout>>();
-	private root: string | undefined;
+	/** Scratch directory shared by every checkout; created once, on first use. */
+	private root: Promise<string> | undefined;
 
 	fetch(source: Source, ref: string | undefined): Promise<Checkout> {
 		if (source.kind === "local") {
@@ -63,9 +64,8 @@ export class Fetcher {
 	}
 
 	private async clone(url: string, ref: string): Promise<Checkout> {
-		this.root ??= await mkdtemp(join(tmpdir(), "skillsfile-"));
-		const dir = join(this.root, String(this.checkouts.size));
-		await mkdir(dir);
+		this.root ??= mkdtemp(join(tmpdir(), "skillsfile-"));
+		const dir = await mkdtemp(join(await this.root, "checkout-"));
 		await git(["init", "--quiet"], dir);
 		// A depth-1 fetch of an exact ref works for branches, tags and full commit SHAs.
 		if (ref.startsWith("-")) {
@@ -82,7 +82,7 @@ export class Fetcher {
 
 	async dispose(): Promise<void> {
 		if (this.root) {
-			await rm(this.root, { recursive: true, force: true });
+			await rm(await this.root, { recursive: true, force: true });
 		}
 	}
 }
