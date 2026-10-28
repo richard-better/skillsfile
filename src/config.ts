@@ -98,11 +98,11 @@ export async function loadConfig(
 	const absolute = existsSync(file) ? realpathSync(file) : resolve(file);
 	const dir = dirname(absolute);
 	const text = existsSync(absolute) ? await readFile(absolute, "utf8") : "";
-	const document = parseDocument(text);
+	const document = parseDocument(text, { merge: true });
 	if (document.errors.length > 0) {
 		throw new ConfigError(`${absolute}: ${document.errors[0]?.message}`);
 	}
-	const parsed = configSchema.safeParse(document.toJS() ?? {});
+	const parsed = configSchema.safeParse(withoutExtensions(document.toJS()));
 	if (!parsed.success) {
 		const issues = parsed.error.issues.map(
 			(issue) => `  ${issue.path.join(".") || "(root)"}: ${issue.message}`,
@@ -117,13 +117,22 @@ export async function loadConfig(
 	};
 }
 
+/** Top-level `x-` keys hold shared definitions for YAML anchors, like docker-compose. */
+function withoutExtensions(value: unknown): unknown {
+	if (!value || typeof value !== "object" || Array.isArray(value))
+		return value ?? {};
+	return Object.fromEntries(
+		Object.entries(value).filter(([key]) => !key.startsWith("x-")),
+	);
+}
+
 /** Edits skills.yaml in place while keeping the user's comments and formatting. */
 export async function editConfig(
 	file: string,
 	edit: (document: Document) => void,
 ): Promise<void> {
 	const text = existsSync(file) ? await readFile(file, "utf8") : "";
-	const document: Document = parseDocument(text);
+	const document: Document = parseDocument(text, { merge: true });
 	if (!isMap(document.contents)) {
 		document.contents = document.createNode({});
 	}

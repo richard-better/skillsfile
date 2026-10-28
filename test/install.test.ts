@@ -211,6 +211,29 @@ describe("Installer", () => {
 		await expect(p.install()).rejects.toThrow("not a valid lock file");
 	});
 
+	it("reads YAML anchors, merge keys and top-level x- definitions", async () => {
+		const p = await project(
+			(repo) => `x-shared: &shared
+  source: ${repo.url}
+  invocation: explicit
+
+skills:
+  grill-me:
+    <<: *shared
+  aihero-code-review:
+    <<: *shared
+    skill: code-review
+`,
+		);
+		expect((await p.install()).errors).toEqual(new Map());
+		expect(await p.read("grill-me/SKILL.md")).toContain(
+			"disable-model-invocation: true",
+		);
+		expect(await p.read("aihero-code-review/SKILL.md")).toContain(
+			"disable-model-invocation: true",
+		);
+	});
+
 	it("installs from a local directory", async () => {
 		const p = await project(() => "skills:\n  mine: ./local\n");
 		await writeFiles(p.dir, {

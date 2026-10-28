@@ -51,6 +51,25 @@ skills:
 | `openai` | A missing `agents/openai.yaml` is generated from the name and description. Fields here override it. `false` skips generation. |
 | `patch` | A unified diff applied last. Create it with `skillsfile diff`. |
 
+### Sharing settings
+
+Standard YAML anchors and `<<:` merge keys work. Top-level keys starting with `x-` are ignored,
+so they can hold shared definitions:
+
+```yaml
+x-emil: &emil
+  source: emilkowalski/skills
+  invocation: explicit
+
+skills:
+  emil-animate:
+    <<: *emil
+    path: skills/animate
+  emil-prototype:
+    <<: *emil
+    path: skills/prototype
+```
+
 ## Commands
 
 ```sh
