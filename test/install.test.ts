@@ -197,6 +197,22 @@ describe("Installer", () => {
 		expect(existsSync(join(outside, "openai.yaml"))).toBe(false);
 	});
 
+	it("refuses patches that add symlinks pointing outside the skill", async () => {
+		const p = await project(
+			(repo) =>
+				`skills:\n  grill-me:\n    source: ${repo.url}\n    patch: evil.patch\n`,
+		);
+		await writeFile(
+			join(p.dir, "evil.patch"),
+			"diff --git a/secrets b/secrets\nnew file mode 120000\nindex 0000000..1111111\n--- /dev/null\n+++ b/secrets\n@@ -0,0 +1 @@\n+/etc\n\\ No newline at end of file\n",
+		);
+		const result = await p.install();
+		expect(result.errors.get("grill-me")?.message).toBe(
+			"secrets links outside the skill; refusing to install it",
+		);
+		expect(existsSync(join(p.target, "grill-me"))).toBe(false);
+	});
+
 	it("rejects lock entries whose names could escape the target", async () => {
 		const p = await project((repo) => `skills:\n  grill-me: ${repo.url}\n`);
 		await writeFile(

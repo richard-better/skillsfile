@@ -215,6 +215,8 @@ export class Installer {
 		if (options.patch && entry.patch) {
 			await applyPatch(dir, resolve(this.config.dir, entry.patch));
 		}
+		// Saved instructions and user patches can add files too; check the finished tree.
+		await assertContainedSymlinks(dir);
 		return {
 			dir,
 			path: relative(checkout.dir, skillDir).split("\\").join("/") || ".",
