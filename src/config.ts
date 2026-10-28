@@ -6,7 +6,7 @@ import { z } from "zod";
 
 export const CONFIG_FILE = "skills.yaml";
 
-const skillName = z
+export const skillName = z
 	.string()
 	.regex(
 		/^[a-z0-9][a-z0-9-]*$/,
@@ -30,7 +30,10 @@ const entrySchema = z
 		/** `owner/repo` on GitHub, a git URL, or a local path (`./`, `../`, `/`, `~/`). */
 		source: z.string().min(1),
 		/** Branch, tag or commit. Defaults to the remote's default branch. */
-		ref: z.string().min(1).optional(),
+		ref: z
+			.string()
+			.regex(/^[^-\s]\S*$/, "refs cannot start with - or contain whitespace")
+			.optional(),
 		/** Upstream skill name to look up in the source. Defaults to the entry key. */
 		skill: z.string().min(1).optional(),
 		/** Exact directory of the skill inside the source. Overrides `skill` lookup. */

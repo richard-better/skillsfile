@@ -68,7 +68,10 @@ export class Fetcher {
 		await mkdir(dir);
 		await git(["init", "--quiet"], dir);
 		// A depth-1 fetch of an exact ref works for branches, tags and full commit SHAs.
-		await git(["fetch", "--quiet", "--depth", "1", url, ref], dir);
+		if (ref.startsWith("-")) {
+			throw new Error(`invalid ref "${ref}"`);
+		}
+		await git(["fetch", "--quiet", "--depth", "1", "--", url, ref], dir);
 		await git(
 			["-c", "advice.detachedHead=false", "checkout", "--quiet", "FETCH_HEAD"],
 			dir,

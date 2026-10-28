@@ -88,6 +88,27 @@ describe("cli", () => {
 		);
 	});
 
+	it("rejects refs that git would read as options", async () => {
+		const { repo, cwd, cli } = await setup();
+		const marker = join(cwd, "pwned");
+		const flag = await cli(
+			"add",
+			repo.url,
+			"--skill",
+			"grill-me",
+			`--ref=--upload-pack=touch ${marker}`,
+		);
+		expect(flag.code).toBe(1);
+		await writeFile(
+			join(cwd, "skills.yaml"),
+			`skills:\n  grill-me:\n    source: ${repo.url}\n    ref: "--upload-pack=touch ${marker}"\n`,
+		);
+		const config = await cli("install");
+		expect(config.code).toBe(1);
+		expect(config.out).toContain("refs cannot start with -");
+		expect(existsSync(marker)).toBe(false);
+	});
+
 	it("explains invalid config", async () => {
 		const { cwd, cli } = await setup();
 		await writeFile(join(cwd, "skills.yaml"), "skills:\n  Bad_Name: x/y\n");

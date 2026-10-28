@@ -1,6 +1,7 @@
 import { existsSync } from "node:fs";
 import { readFile, writeFile } from "node:fs/promises";
 import { z } from "zod";
+import { skillName } from "./config.js";
 
 const lockEntrySchema = z.object({
 	source: z.string(),
@@ -17,7 +18,7 @@ const lockEntrySchema = z.object({
 
 const lockSchema = z.object({
 	version: z.literal(1),
-	skills: z.record(z.string(), lockEntrySchema),
+	skills: z.record(skillName, lockEntrySchema),
 });
 
 export type LockEntry = z.infer<typeof lockEntrySchema>;

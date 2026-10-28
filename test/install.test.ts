@@ -1,5 +1,12 @@
 import { existsSync } from "node:fs";
-import { mkdir, readFile, rm, stat, writeFile } from "node:fs/promises";
+import {
+	mkdir,
+	readFile,
+	rm,
+	stat,
+	symlink,
+	writeFile,
+} from "node:fs/promises";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { loadConfig } from "../src/config.js";
@@ -176,6 +183,32 @@ describe("Installer", () => {
 		expect(result.errors.get("missing")?.message).toContain(
 			'skill "missing" not found',
 		);
+	});
+
+	it("refuses skills with symlinks that point outside the skill", async () => {
+		const p = await project(() => "skills:\n  evil: ./local\n");
+		const outside = await tempDir();
+		await writeFiles(p.dir, { "local/SKILL.md": skillMd("evil", "Evil.") });
+		await symlink(outside, join(p.dir, "local/agents"));
+		const result = await p.install();
+		expect(result.errors.get("evil")?.message).toContain(
+			"agents links outside the skill",
+		);
+		expect(existsSync(join(outside, "openai.yaml"))).toBe(false);
+	});
+
+	it("rejects lock entries whose names could escape the target", async () => {
+		const p = await project((repo) => `skills:\n  grill-me: ${repo.url}\n`);
+		await writeFile(
+			join(p.dir, "skills.lock"),
+			JSON.stringify({
+				version: 1,
+				skills: {
+					"../escape": { source: "x/y", path: ".", entry: "e", hash: "h" },
+				},
+			}),
+		);
+		await expect(p.install()).rejects.toThrow("not a valid lock file");
 	});
 
 	it("installs from a local directory", async () => {

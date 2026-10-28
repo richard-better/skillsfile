@@ -3,13 +3,15 @@ import {
 	cp,
 	mkdir,
 	mkdtemp,
+	readdir,
 	readFile,
+	readlink,
 	rename,
 	rm,
 	writeFile,
 } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { dirname, join, relative, resolve } from "node:path";
+import { dirname, join, relative, resolve, sep } from "node:path";
 import { type Config, editConfig, type SkillEntry } from "./config.js";
 import { hashDir, hashText } from "./hash.js";
 import {
@@ -197,6 +199,7 @@ export class Installer {
 		});
 		const dir = await mkdtemp(join(await this.scratch, `${name}-`));
 		await cp(skillDir, dir, { recursive: true, verbatimSymlinks: true });
+		await assertContainedSymlinks(dir);
 		await applyOverrides(dir, name, entry);
 		if (options.patch && entry.patch) {
 			await applyPatch(dir, resolve(this.config.dir, entry.patch));
@@ -293,6 +296,26 @@ async function replaceDir(from: string, to: string): Promise<void> {
 	await cp(from, staging, { recursive: true, verbatimSymlinks: true });
 	await rm(to, { recursive: true, force: true });
 	await rename(staging, to);
+}
+
+/** Rejects symlinks that point outside the skill, so later writes and agents stay inside it. */
+async function assertContainedSymlinks(
+	root: string,
+	dir = root,
+): Promise<void> {
+	for (const entry of await readdir(dir, { withFileTypes: true })) {
+		const path = join(dir, entry.name);
+		if (entry.isSymbolicLink()) {
+			const destination = resolve(dir, await readlink(path));
+			if (destination !== root && !destination.startsWith(`${root}${sep}`)) {
+				throw new Error(
+					`${relative(root, path)} links outside the skill; refusing to install it`,
+				);
+			}
+		} else if (entry.isDirectory()) {
+			await assertContainedSymlinks(root, path);
+		}
+	}
 }
 
 function stableStringify(value: unknown): string {
