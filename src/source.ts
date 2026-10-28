@@ -2,7 +2,7 @@ import { existsSync } from "node:fs";
 import { mkdir, mkdtemp, readdir, readFile, rm } from "node:fs/promises";
 import { homedir, tmpdir } from "node:os";
 import { basename, join, relative, resolve, sep } from "node:path";
-import { readFrontmatter } from "./frontmatter.js";
+import { readFrontmatterField } from "./frontmatter.js";
 import { git } from "./process.js";
 
 export type Source =
@@ -103,11 +103,9 @@ export async function discoverSkills(root: string): Promise<FoundSkill[]> {
 	async function walk(dir: string): Promise<void> {
 		const entries = await readdir(dir, { withFileTypes: true });
 		if (entries.some((entry) => entry.isFile() && entry.name === "SKILL.md")) {
-			const frontmatter = readFrontmatter(
-				await readFile(join(dir, "SKILL.md"), "utf8"),
-			);
-			const name = frontmatter?.get("name");
-			const description = frontmatter?.get("description");
+			const text = await readFile(join(dir, "SKILL.md"), "utf8");
+			const name = readFrontmatterField(text, "name");
+			const description = readFrontmatterField(text, "description");
 			found.push({
 				name: typeof name === "string" ? name : basename(dir),
 				path: relative(root, dir).split(sep).join("/") || ".",

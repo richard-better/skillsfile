@@ -3,7 +3,7 @@ import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { type Document, isMap, parseDocument, Scalar } from "yaml";
 import type { OpenaiInterface, SkillEntry } from "./config.js";
-import { parseSkillFile, serializeSkillFile } from "./frontmatter.js";
+import { SkillFile } from "./frontmatter.js";
 
 /**
  * Applies an entry's overrides to a staged copy of the skill: rename, description,
@@ -16,32 +16,31 @@ export async function applyOverrides(
 ): Promise<void> {
 	const skillPath = join(dir, "SKILL.md");
 	const original = await readFile(skillPath, "utf8");
-	const skill = parseSkillFile(original);
-	const { frontmatter } = skill;
+	const skill = SkillFile.parse(original);
 
-	const upstreamName = frontmatter.get("name");
+	const upstreamName = skill.get("name");
 	if (upstreamName !== name) {
-		frontmatter.set("name", name);
+		skill.set("name", name);
 	}
 	if (entry.description !== undefined) {
-		frontmatter.set("description", entry.description);
+		skill.set("description", entry.description);
 	}
 	if (entry.invocation === "explicit") {
-		frontmatter.set("disable-model-invocation", true);
+		skill.set("disable-model-invocation", true);
 	} else if (entry.invocation === "auto") {
-		frontmatter.delete("disable-model-invocation");
+		skill.set("disable-model-invocation", undefined);
 	}
-	const updated = serializeSkillFile(skill);
+	const updated = skill.toString();
 	if (updated !== original) {
 		await writeFile(skillPath, updated);
 	}
 
-	const description = frontmatter.get("description");
+	const description = skill.get("description");
 	await writeOpenaiYaml(dir, {
 		name,
 		upstreamName: typeof upstreamName === "string" ? upstreamName : undefined,
 		description: typeof description === "string" ? description : "",
-		explicitOnly: frontmatter.get("disable-model-invocation") === true,
+		explicitOnly: skill.get("disable-model-invocation") === true,
 		entry,
 	});
 }

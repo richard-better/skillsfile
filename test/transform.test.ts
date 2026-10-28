@@ -19,12 +19,8 @@ async function skill(files: Record<string, string>) {
 
 describe("applyOverrides", () => {
 	it("leaves an untouched skill byte-identical apart from a generated openai.yaml", async () => {
-		const original = skillMd(
-			"grill-me",
-			"Interview the user about a plan. Use when asked to grill.",
-			"Body.\n",
-			"license: MIT\n",
-		);
+		const original =
+			"---\nname: grill-me\ndescription: >-\n  Interview the user about a plan.\n  Use when asked to grill.\nlicense: MIT # upstream comment\n---\n\nBody.\n";
 		const s = await skill({ "SKILL.md": original });
 		await applyOverrides(s.dir, "grill-me", { source: "x/y" });
 		expect(await s.read("SKILL.md")).toBe(original);
@@ -48,6 +44,21 @@ describe("applyOverrides", () => {
 		);
 		expect(await s.read("agents/openai.yaml")).toBe(
 			'interface:\n  display_name: "AI Hero Code Review"\n  short_description: "Two-axis review: standards and spec"\npolicy:\n  allow_implicit_invocation: false\n',
+		);
+	});
+
+	it("edits only the overridden fields and keeps the rest of the frontmatter as written", async () => {
+		const s = await skill({
+			"SKILL.md":
+				"---\nname: prototype # upstream\ndescription: >-\n  Build variants.\n  Pick one.\nlicense: MIT\ndisable-model-invocation: true\n---\nBody.\n",
+		});
+		await applyOverrides(s.dir, "emil-prototype", {
+			source: "x/y",
+			description: "Build several versions: then pick.",
+			invocation: "auto",
+		});
+		expect(await s.read("SKILL.md")).toBe(
+			'---\nname: emil-prototype\ndescription: "Build several versions: then pick."\nlicense: MIT\n---\nBody.\n',
 		);
 	});
 
