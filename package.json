@@ -1,18 +1,45 @@
 {
-  "name": "skills-collection",
-  "version": "0.1.0",
-  "private": true,
-  "type": "module",
-  "scripts": {
-    "sync": "bun run scripts/sync.ts",
-    "install:skills": "bun run scripts/install.ts"
-  },
-  "dependencies": {
-    "gray-matter": "^4.0.3",
-    "yaml": "^2.6.0",
-    "zod": "^3.23.8"
-  },
-  "devDependencies": {
-    "@types/bun": "latest"
-  }
+	"name": "skillsfile",
+	"version": "0.0.0",
+	"description": "Declarative agent skills: one skills.yaml to install, rename, retune and patch skills from any repo",
+	"license": "MIT",
+	"type": "module",
+	"bin": {
+		"skillsfile": "dist/cli.js"
+	},
+	"files": [
+		"dist"
+	],
+	"engines": {
+		"node": ">=20"
+	},
+	"repository": {
+		"type": "git",
+		"url": "git+https://github.com/richard-better/skills-collection.git"
+	},
+	"keywords": [
+		"agent-skills",
+		"claude-code",
+		"codex",
+		"skills",
+		"SKILL.md"
+	],
+	"scripts": {
+		"build": "tsc -p tsconfig.build.json",
+		"typecheck": "tsc --noEmit",
+		"lint": "biome check .",
+		"format": "biome check --write .",
+		"test": "vitest run",
+		"prepublishOnly": "pnpm run build"
+	},
+	"dependencies": {
+		"yaml": "^2.9.1",
+		"zod": "^4.6.7"
+	},
+	"devDependencies": {
+		"@biomejs/biome": "^2.6.3",
+		"@types/node": "^22.20.5",
+		"typescript": "^7.0.2",
+		"vitest": "^5.0.5"
+	}
 }
