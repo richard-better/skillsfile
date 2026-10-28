@@ -37,6 +37,7 @@ skills:
     invocation: explicit         # explicit | auto (unset keeps upstream)
     openai:                      # agents/openai.yaml interface overrides, or `false`
       display_name: AI Hero Code Review
+    instructions: Refer to sibling skills by the names they are installed under.
     patch: patches/aihero-code-review.patch
 ```
 
@@ -49,6 +50,7 @@ skills:
 | `description` | Replaces the frontmatter `description`. |
 | `invocation` | `explicit` sets `disable-model-invocation: true` for Claude Code and `policy.allow_implicit_invocation: false` for Codex, so the skill only runs when invoked by name. `auto` clears both. |
 | `openai` | A missing `agents/openai.yaml` is generated from the name and description. Fields here override it. `false` skips generation. |
+| `instructions` | Natural-language edits Claude Code applies to the skill. A string or a list. See [Instructions](#instructions). |
 | `patch` | A unified diff applied last. Create it with `skillsfile diff`. |
 
 ### Sharing settings
@@ -87,7 +89,7 @@ any other `skills.yaml`.
 ## How it works
 
 Each skill is built in a scratch folder: upstream files, then the overrides from
-`skills.yaml`, then the patch. The result replaces the installed folder.
+`skills.yaml`, then `instructions`, then the patch. The result replaces the installed folder.
 
 `skills.lock` sits next to `skills.yaml` and records each skill's commit and a hash of
 what was installed. Commit it. `install` reproduces the same files anywhere, and
@@ -96,6 +98,37 @@ skips skills whose entry, patch and installed files have not changed.
 Folders in the target that `skillsfile` did not create are never touched. Skills you
 edited after installing are never overwritten or deleted: install stops and asks you to
 run `skillsfile diff <name>`, which turns the edits into a patch, or to pass `--force`.
+
+### Instructions
+
+`instructions` describe edits in plain language, for changes that should survive upstream
+updates better than a diff would:
+
+```yaml
+model: sonnet                    # optional; defaults to Claude Code's default
+
+x-instructions:
+  sibling-names: &sibling-names >-
+    Where the text refers to another skill from the same source by its upstream name,
+    use the name it is installed under instead.
+
+skills:
+  emil-animate:
+    source: emilkowalski/skills
+    path: skills/animate
+    instructions: [*sibling-names, Drop the "Initial Response" section.]
+```
+
+The [Claude Code](https://claude.com/claude-code) CLI applies them with `claude -p`, so it must be
+installed and logged in. It runs inside a copy of the skill with `--restricted`: only file
+read and edit tools, confined to that copy, with no shell, no MCP servers and none of your
+settings, hooks or `CLAUDE.md`. Claude is told the skill's installed and upstream names and
+those of the other skills from the same source.
+
+The result is saved as `patches/<name>.instructions.patch`; commit it. Installs apply the saved
+patch without calling Claude, so they are fast, offline and reproducible. Claude runs again
+only when its input changes: a new upstream version, different instructions or overrides,
+or another `model`. If it cannot apply the instructions, that skill keeps its previous version.
 
 ### Patches
 

@@ -48,6 +48,20 @@ const entrySchema = z
 		invocation: z.enum(["auto", "explicit"]).optional(),
 		/** `false` skips generating agents/openai.yaml; an object overrides its interface fields. */
 		openai: z.union([z.literal(false), openaiInterface]).optional(),
+		/**
+		 * Natural-language edits Claude Code applies after the overrides. The result is saved as
+		 * patches/<name>.instructions.patch and only regenerated when upstream or the instructions change.
+		 * A list may contain lists, so YAML anchors to shared instruction lists can be combined.
+		 */
+		instructions: z
+			.union([
+				z.string().min(1),
+				z.array(z.union([z.string().min(1), z.array(z.string().min(1))])),
+			])
+			.transform((value) =>
+				typeof value === "string" ? [value] : value.flat(),
+			)
+			.optional(),
 		/** Unified diff applied last, relative to skills.yaml. Create one with `skillsfile diff`. */
 		patch: z.string().min(1).optional(),
 	})
@@ -60,6 +74,8 @@ const configSchema = z
 	.object({
 		/** Where skills are installed, relative to skills.yaml. */
 		target: z.string().min(1).optional(),
+		/** Model Claude Code uses for `instructions`; defaults to Claude Code's own default. */
+		model: z.string().min(1).optional(),
 		skills: z
 			.record(
 				skillName,
@@ -85,6 +101,7 @@ export interface Config {
 	dir: string;
 	/** Absolute install directory. */
 	target: string;
+	model: string | undefined;
 	skills: Map<string, SkillEntry>;
 }
 
@@ -113,6 +130,7 @@ export async function loadConfig(
 		file: absolute,
 		dir,
 		target: resolve(dir, parsed.data.target ?? defaultTarget),
+		model: parsed.data.model,
 		skills: new Map(Object.entries(parsed.data.skills)),
 	};
 }

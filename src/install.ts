@@ -11,7 +11,7 @@ import {
 	writeFile,
 } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { dirname, join, relative, resolve, sep } from "node:path";
+import { basename, dirname, join, relative, resolve, sep } from "node:path";
 import { type Config, editConfig, type SkillEntry } from "./config.js";
 import { hashDir, hashText } from "./hash.js";
 import {
@@ -22,6 +22,7 @@ import {
 	writeLock,
 } from "./lock.js";
 import { applyPatch, createPatch } from "./patch.js";
+import { type RewriteRequest, rewritePrompt, rewriteSkill } from "./rewrite.js";
 import { Fetcher, locateSkill, parseSource } from "./source.js";
 import { applyOverrides } from "./transform.js";
 
@@ -52,6 +53,8 @@ export class Installer {
 		join(tmpdir(), "skillsfile-build-"),
 	);
 
+	private log: (line: string) => void = () => {};
+
 	constructor(private readonly config: Config) {}
 
 	get lockFile(): string {
@@ -61,6 +64,7 @@ export class Installer {
 	async install(options: InstallOptions = {}): Promise<InstallResult> {
 		const { config } = this;
 		const log = options.log ?? (() => {});
+		this.log = log;
 		const lock = await readLock(this.lockFile);
 		const nextLock: Lock = new Map();
 		const outcomes = new Map<string, Outcome>();
@@ -110,6 +114,7 @@ export class Installer {
 					);
 					await rm(dir, { recursive: true, force: true });
 				}
+				await rm(this.instructionsPatchFile(name), { force: true });
 				outcomes.set(name, "removed");
 			} catch (error) {
 				errors.set(name, toError(error));
@@ -132,7 +137,7 @@ export class Installer {
 		force: boolean,
 	): Promise<{ outcome: Outcome; lockEntry: LockEntry }> {
 		const targetDir = join(this.config.target, name);
-		const fingerprint = await this.fingerprint(entry);
+		const fingerprint = await this.fingerprint(name, entry);
 		const installed = existsSync(targetDir)
 			? await hashDir(targetDir)
 			: undefined;
@@ -160,6 +165,9 @@ export class Installer {
 			entry: fingerprint,
 			hash,
 		};
+		if (!entry.instructions) {
+			await rm(this.instructionsPatchFile(name), { force: true });
+		}
 		if (installed === hash) {
 			return { outcome: "unchanged", lockEntry };
 		}
@@ -182,7 +190,7 @@ export class Installer {
 	}
 
 	/**
-	 * Builds a skill into a scratch directory: upstream files, then overrides, then the patch.
+	 * Builds a skill into a scratch directory: upstream files, overrides, instructions, then the patch.
 	 * `commit` pins git sources; otherwise the entry's ref (or the default branch) is fetched.
 	 */
 	async build(
@@ -201,6 +209,9 @@ export class Installer {
 		await cp(skillDir, dir, { recursive: true, verbatimSymlinks: true });
 		await assertContainedSymlinks(dir);
 		await applyOverrides(dir, name, entry);
+		if (entry.instructions) {
+			await this.applyInstructions(dir, name, entry, entry.instructions);
+		}
 		if (options.patch && entry.patch) {
 			await applyPatch(dir, resolve(this.config.dir, entry.patch));
 		}
@@ -252,22 +263,74 @@ export class Installer {
 		});
 		lock.set(name, {
 			...locked,
-			entry: await this.fingerprint(nextEntry),
+			entry: await this.fingerprint(name, nextEntry),
 			hash: await hashDir(targetDir),
 		});
 		await writeLock(this.lockFile, lock);
 		return patch === "" ? undefined : patchFile;
 	}
 
-	private async fingerprint(entry: SkillEntry): Promise<string> {
-		const patchFile = entry.patch
-			? resolve(this.config.dir, entry.patch)
-			: undefined;
-		const patch =
-			patchFile && existsSync(patchFile)
-				? await readFile(patchFile, "utf8")
-				: "";
-		return hashText(stableStringify(entry), patch);
+	/**
+	 * Applies an entry's instructions with Claude Code, reusing the saved result while the
+	 * pre-instructions build and the prompt are unchanged. The saved patch starts with a
+	 * header naming that input, which `git apply` ignores.
+	 */
+	private async applyInstructions(
+		dir: string,
+		name: string,
+		entry: SkillEntry,
+		instructions: string[],
+	): Promise<void> {
+		const request: RewriteRequest = {
+			name,
+			upstreamName: upstreamNameOf(name, entry),
+			instructions,
+			siblings: new Map(
+				[...this.config.skills]
+					.filter(
+						([other, sibling]) =>
+							other !== name && sibling.source === entry.source,
+					)
+					.map(([other, sibling]) => [other, upstreamNameOf(other, sibling)]),
+			),
+			model: this.config.model,
+		};
+		const header = `skillsfile instructions ${hashText(await hashDir(dir), this.config.model ?? "", rewritePrompt(request))}\n`;
+		const file = this.instructionsPatchFile(name);
+		const saved = existsSync(file) ? await readFile(file, "utf8") : undefined;
+		if (saved?.startsWith(header)) {
+			if (saved !== header) await applyPatch(dir, file);
+			return;
+		}
+
+		this.log(`rewriting ${name} with claude`);
+		const base = await mkdtemp(join(await this.scratch, `${name}-base-`));
+		await cp(dir, base, { recursive: true, verbatimSymlinks: true });
+		await rewriteSkill(dir, request);
+		await mkdir(dirname(file), { recursive: true });
+		await writeFile(file, header + (await createPatch(base, dir)));
+	}
+
+	private instructionsPatchFile(name: string): string {
+		return resolve(this.config.dir, "patches", `${name}.instructions.patch`);
+	}
+
+	/** Hash of everything an install depends on besides upstream: the entry and both patch files. */
+	private async fingerprint(name: string, entry: SkillEntry): Promise<string> {
+		const read = async (file: string | undefined) =>
+			file && existsSync(file) ? await readFile(file, "utf8") : "";
+		const patch = await read(
+			entry.patch ? resolve(this.config.dir, entry.patch) : undefined,
+		);
+		const instructions = await read(
+			entry.instructions ? this.instructionsPatchFile(name) : undefined,
+		);
+		return hashText(
+			stableStringify(entry),
+			this.config.model ?? "",
+			patch,
+			instructions,
+		);
 	}
 
 	async dispose(): Promise<void> {
@@ -316,6 +379,11 @@ async function assertContainedSymlinks(
 			await assertContainedSymlinks(root, path);
 		}
 	}
+}
+
+/** The skill's name upstream: the looked-up name, the folder of an explicit path, or the key. */
+function upstreamNameOf(name: string, entry: SkillEntry): string {
+	return entry.skill ?? (entry.path ? basename(entry.path) : name);
 }
 
 function stableStringify(value: unknown): string {
